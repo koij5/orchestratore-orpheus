@@ -1,0 +1,40 @@
+name: Orchestratore Lezioni
+
+on:
+  # 1. Esecuzione schedulata (Cron)
+  schedule:
+    # Esegue ogni 15 minuti. Nota: il tempo minimo è 5 minuti[reference:3].
+    - cron: '*/15 * * * *'
+  # 2. Permette di avviare manualmente il workflow per test
+  workflow_dispatch:
+
+jobs:
+  run-orchestrator:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Scarica il codice dal repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Prepara l'ambiente Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Scegli la versione che preferisci
+
+      # 3. Installa le dipendenze
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. Esegue lo script, passando i secrets come variabili d'ambiente
+      - name: Run Python script
+        env:
+          # Mappa i secrets di GitHub a variabili d'ambiente per lo script
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py
