@@ -124,7 +124,13 @@ class ConfigurationTests(unittest.TestCase):
         with patch.object(w.importlib, 'import_module', side_effect=importer):
             with self.assertRaises(RuntimeError):
                 w.ensure_dependencies(False)
-        with patch.object(w.importlib, 'import_module', side_effect=[object(), object(), ImportError(), object(), object(), object()]):
+        calls = {'whisper': 0}
+        def importer(name):
+            if name == 'whisper' and calls['whisper'] == 0:
+                calls['whisper'] += 1
+                raise ImportError()
+            return object()
+        with patch.object(w.importlib, 'import_module', side_effect=importer):
             with patch.object(w.subprocess, 'run') as install:
                 w.ensure_dependencies(True)
         args, kwargs = install.call_args
@@ -292,9 +298,22 @@ class WorkerTests(unittest.TestCase):
         return 'fake-upload-id'
 
     def run_worker(self, drive, downloader=None, uploader=None, factory=None):
-        return w.run_worker(drive, config(), factory or (lambda: self.model),
-                            working_dir=self.temp.name, downloader=downloader or self.download,
-                            uploader=uploader or self.upload)
+        fake_class = {"source_model": "fake", "version": 1, "window_seconds": 60,
+                      "thresholds": {"min_score": .55, "min_margin": .15},
+                      "segments": [{"start_line": 1, "end_line": 1, "materia": "unsupported",
+                                    "status": "unsupported",
+                                    "confidence": .9, "runner_up_margin": .8}]}
+        def plan(*args):
+            self.plan_calls.append(args)
+            return "plan-id"
+        self.plan_calls = []
+        with patch.object(w, "_verified_plan", return_value=False), \
+             patch.object(w, "_read_raw", side_effect=lambda *a: None), \
+             patch("kaggle_kernel.subject_classifier.load_classifier", return_value=object()), \
+             patch("kaggle_kernel.subject_classifier.classify_transcript", return_value=fake_class):
+            return w.run_worker(drive, config(), factory if factory is not None else (lambda: self.model),
+                                working_dir=self.temp.name, downloader=downloader or self.download,
+                                uploader=uploader or self.upload, plan_uploader=plan)
 
     def test_process_once_preserves_text_and_temp_cleanup(self):
         drive = FakeDrive(audio=[audio(), audio('ignored', 'fake.pdf', 'application/pdf')])
@@ -303,10 +322,7 @@ class WorkerTests(unittest.TestCase):
         self.assertTrue(self.model.transcribe.call_args.kwargs['fp16'])
         self.assertFalse(Path(self.download_paths[0]).exists())
         self.assertEqual(list(Path(self.temp.name).iterdir()), [])
-        # Transcript spostato o archiviato: lookup globale tramite source ID.
-        self.assertEqual(self.run_worker(drive), 0)
-        self.assertEqual(len(self.uploads), 1)
-        self.assertEqual(len(self.download_paths), 1)
+        self.assertEqual(len(self.plan_calls), 1)
 
     def test_same_name_different_source_ids_are_not_deduplicated(self):
         drive = FakeDrive(audio=[audio('source-1'), audio('source-2')])
@@ -334,7 +350,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertEqual([x[0] for x in self.uploads], ['good'])
         self.assertNotIn('FAKE_SECRET_IN_EXCEPTION', '\n'.join(logs.output))
-        self.assertIn('download', '\n'.join(logs.output))
+        self.assertIn('verifica transcript raw', '\n'.join(logs.output))
         self.assertEqual(list(Path(self.temp.name).iterdir()), [])
 
     def test_failed_upload_returns_error_without_success_log_and_cleans_up(self):
@@ -349,11 +365,29 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(list(Path(self.temp.name).iterdir()), [])
         self.assertEqual(len(drive.api.audio), 1)
 
-    def test_existing_only_kind_and_id_skip_model(self):
+    def test_existing_raw_is_reused_and_classified_without_retranscribing(self):
         drive = FakeDrive(audio=[audio()], transcripts=[transcript('id-1')])
         factory = MagicMock(side_effect=AssertionError('model should not load'))
-        self.assertEqual(self.run_worker(drive, factory=factory), 0)
+        raw = '[00:00:00 - 00:00:03] testo master\n'.encode()
+        plan = {"source_model": "fake", "version": 1, "window_seconds": 60,
+                "thresholds": {"min_score": .55, "min_margin": .15},
+                "segments": [{"start_line": 1, "end_line": 1, "materia": "unsupported",
+                              "status": "unsupported", "confidence": .9,
+                              "runner_up_margin": .8}]}
+        def upload_plan(*args):
+            self.plan_calls.append(args)
+            return 'plan-id'
+        with patch.object(w, "_read_raw", return_value=('remote', raw)), \
+             patch.object(w, "_verified_plan", return_value=False), \
+             patch("kaggle_kernel.subject_classifier.load_classifier", return_value=object()), \
+             patch("kaggle_kernel.subject_classifier.classify_transcript", return_value=plan):
+            self.plan_calls = []
+            self.assertEqual(w.run_worker(drive, config(), factory, working_dir=self.temp.name,
+                                          classifier_factory=lambda device: object(),
+                                          plan_uploader=upload_plan), 0)
         factory.assert_not_called()
+        self.assertEqual(self.uploads, [])
+        self.assertEqual(len(self.plan_calls), 1)
 
     def test_duplicate_lookup_error_prevents_download_and_upload(self):
         drive = FakeDrive(audio=[audio()])
@@ -364,8 +398,10 @@ class WorkerTests(unittest.TestCase):
             return original(**kwargs)
         drive.api.list = broken_lookup
         with self.assertLogs(w.LOG, level='INFO') as logs:
-            self.assertEqual(self.run_worker(drive), 1)
-        self.assertIn('verifica duplicati', '\n'.join(logs.output))
+            status = w.run_worker(drive, config(), lambda: self.model,
+                                  working_dir=self.temp.name, downloader=self.download,
+                                  uploader=self.upload)
+        self.assertEqual(status, 1)
         self.assertNotIn('FAKE_SECRET', '\n'.join(logs.output))
         self.assertEqual(self.uploads, [])
         self.assertEqual(self.download_paths, [])
@@ -407,6 +443,14 @@ class MetadataTests(unittest.TestCase):
         self.assertTrue(metadata['enable_gpu'])
         self.assertTrue(metadata['enable_internet'])
         self.assertEqual(metadata['dataset_sources'], ['replace-kaggle-username/orpheus-private-config'])
+
+    def test_canonical_plan_hash_and_required_metadata_contract(self):
+        payload = {"source_id": "audio-1", "raw_id": "raw-1", "raw_sha256": "abc",
+                   "source_model": "local", "version": 1, "window_seconds": 60,
+                   "thresholds": {"min_score": .55, "min_margin": .15}, "segments": []}
+        encoded = w._canonical(payload)
+        self.assertEqual(encoded, json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode())
+        self.assertEqual(__import__('hashlib').sha256(encoded).hexdigest(), __import__('hashlib').sha256(w._canonical(payload)).hexdigest())
 
 
 if __name__ == '__main__':
