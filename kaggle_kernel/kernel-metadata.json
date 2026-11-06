@@ -1,0 +1,16 @@
+{
+  "id": "tuo_username_kaggle/nome-del-tuo-kernel",
+  "title": "Trascrizione Lezioni con Whisper",
+  "code_file": "trascrivi_lezioni.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [
+    "tuo_username_kaggle/credenziali-drive-service-account"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
