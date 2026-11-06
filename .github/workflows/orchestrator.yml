@@ -1,40 +1,38 @@
-name: Orchestratore Lezioni
+name: Orchestratore lezioni
 
 on:
-  # 1. Esecuzione schedulata (Cron)
   schedule:
-    # Esegue ogni 15 minuti. Nota: il tempo minimo è 5 minuti[reference:3].
-    - cron: '*/15 * * * *'
-  # 2. Permette di avviare manualmente il workflow per test
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
+# Una sola esecuzione alla volta: le successive aspettano in coda
+concurrency:
+  group: orchestratore
+  cancel-in-progress: false
+
 jobs:
-  run-orchestrator:
+  run:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 20
     steps:
-      # 1. Scarica il codice dal repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # 2. Prepara l'ambiente Python
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Scegli la versione che preferisci
-
-      # 3. Installa le dipendenze
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      # 4. Esegue lo script, passando i secrets come variabili d'ambiente
-      - name: Run Python script
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python orchestratore.py
         env:
-          # Mappa i secrets di GitHub a variabili d'ambiente per lo script
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python main.py
+          KAGGLE_KERNEL_SLUG: ${{ secrets.KAGGLE_KERNEL_SLUG }}     # es. "utente/whisper-trascrizione"
+          KAGGLE_KERNEL_DIR: kaggle_kernel                          # cartella nel repo con notebook + kernel-metadata.json
+          FOLDER_AUDIO_INCOMING: ${{ secrets.FOLDER_AUDIO_INCOMING }}
+          FOLDER_PROCESSING_KAGGLE: ${{ secrets.FOLDER_PROCESSING_KAGGLE }}
+          FOLDER_TRASCRIZIONI: ${{ secrets.FOLDER_TRASCRIZIONI }}
+          FOLDER_TRASCRIZIONI_ELABORATE: ${{ secrets.FOLDER_TRASCRIZIONI_ELABORATE }}
+          FOLDER_AUDIO_COMPLETATI: ${{ secrets.FOLDER_AUDIO_COMPLETATI }}
+          FOLDER_ERRORI: ${{ secrets.FOLDER_ERRORI }}
+          FOLDER_RADICE_MATERIE: ${{ secrets.FOLDER_RADICE_MATERIE }}
