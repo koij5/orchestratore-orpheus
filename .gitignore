@@ -1,0 +1,37 @@
+# Credenziali, configurazioni locali e dati privati
+.env
+.env.*
+*.env
+client_secret*.json
+credentials*.json
+credenziali*.json
+service_account*.json
+*token*.json
+kaggle.json
+config/local*.json
+kaggle_kernel/config.json
+kaggle_kernel/drive-token.json
+
+# Audio, trascrizioni e libri dell'utente
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.ogg
+*.flac
+*.opus
+*.webm
+*.aiff
+*.aif
+*.amr
+*.mp4
+*.pdf
+*.txt.local
+
+# Artefatti di sviluppo
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.ipynb_checkpoints/

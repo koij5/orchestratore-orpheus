@@ -1,14 +1,14 @@
 {
-  "id": "tuo_username_kaggle/nome-del-tuo-kernel",
-  "title": "Trascrizione Lezioni con Whisper",
-  "code_file": "trascrivi_lezioni.ipynb",
+  "id": "replace-kaggle-username/orpheus-whisper",
+  "title": "Orpheus Whisper transcription worker",
+  "code_file": "trascrivi.py",
   "language": "python",
-  "kernel_type": "notebook",
+  "kernel_type": "script",
   "is_private": true,
   "enable_gpu": true,
   "enable_internet": true,
   "dataset_sources": [
-    "tuo_username_kaggle/credenziali-drive-service-account"
+    "replace-kaggle-username/orpheus-private-config"
   ],
   "competition_sources": [],
   "kernel_sources": [],

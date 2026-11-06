@@ -1,11 +1,17 @@
 name: Orchestratore lezioni
 
+# PRIMA ESECUZIONE: manuale; attivare la pianificazione solo dopo un test completo.
+# Il workflow remoto è inizialmente disabilitato: non elaborerà dati da solo.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
+  # Quando sei pronto, decommenta sotto. GitHub esegue i cron in UTC;
+  # l'orario può subire ritardi e le esecuzioni non sono garantite.
+  # schedule:
+  #   - cron: '*/15 * * * *'
 
-# Una sola esecuzione alla volta: le successive aspettano in coda
+permissions:
+  contents: read
+
 concurrency:
   group: orchestratore
   cancel-in-progress: false
@@ -18,17 +24,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
           cache: pip
-      - run: pip install -r requirements.txt
-      - run: python orchestratore.py
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt
+      - name: Prepara metadati Kaggle privati
+        run: python scripts/prepare_kernel.py
         env:
+          KAGGLE_KERNEL_DIR: kaggle_kernel
+          KAGGLE_KERNEL_SLUG: ${{ secrets.KAGGLE_KERNEL_SLUG }}
+          KAGGLE_DATASET_SLUG: ${{ secrets.KAGGLE_DATASET_SLUG }}
+      - name: Esegui un ciclo dell'orchestratore
+        run: python orchestratore.py
+        env:
+          GOOGLE_AUTHORIZED_USER_JSON: ${{ secrets.GOOGLE_AUTHORIZED_USER_JSON }}
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLASSIFIER_MODE: ${{ vars.CLASSIFIER_MODE }}
+          ALLOW_GEMINI_IF_TERMS_MET: ${{ vars.ALLOW_GEMINI_IF_TERMS_MET }}
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-          KAGGLE_KERNEL_SLUG: ${{ secrets.KAGGLE_KERNEL_SLUG }}     # es. "utente/whisper-trascrizione"
-          KAGGLE_KERNEL_DIR: kaggle_kernel                          # cartella nel repo con notebook + kernel-metadata.json
+          KAGGLE_KERNEL_SLUG: ${{ secrets.KAGGLE_KERNEL_SLUG }}
+          KAGGLE_KERNEL_DIR: kaggle_kernel
+          ORPHEUS_WORKER_CONTRACT_VERIFIED: ${{ vars.ORPHEUS_WORKER_CONTRACT_VERIFIED }}
           FOLDER_AUDIO_INCOMING: ${{ secrets.FOLDER_AUDIO_INCOMING }}
           FOLDER_PROCESSING_KAGGLE: ${{ secrets.FOLDER_PROCESSING_KAGGLE }}
           FOLDER_TRASCRIZIONI: ${{ secrets.FOLDER_TRASCRIZIONI }}
@@ -36,3 +54,4 @@ jobs:
           FOLDER_AUDIO_COMPLETATI: ${{ secrets.FOLDER_AUDIO_COMPLETATI }}
           FOLDER_ERRORI: ${{ secrets.FOLDER_ERRORI }}
           FOLDER_RADICE_MATERIE: ${{ secrets.FOLDER_RADICE_MATERIE }}
+          MATERIE_FOLDER_IDS: ${{ secrets.MATERIE_FOLDER_IDS }}
