@@ -62,9 +62,25 @@ class Config:
     bootstrap_dependencies: bool = True
 
 
+def resolve_config_path(path: str | None = None,
+                       input_dir: Path = Path("/kaggle/input")) -> str:
+    """Risolve il config esplicito o un unico config.json montato da Kaggle."""
+    explicit = path or os.environ.get(CONFIG_ENV)
+    if explicit:
+        return str(explicit)
+    if Path(DEFAULT_CONFIG_PATH).is_file():
+        return DEFAULT_CONFIG_PATH
+    candidates = sorted(p for p in input_dir.rglob("config.json") if p.is_file()) if input_dir.is_dir() else []
+    if len(candidates) == 1:
+        return str(candidates[0])
+    if not candidates:
+        raise FileNotFoundError("config.json not found in Kaggle input; set ORPHEUS_CONFIG_PATH")
+    raise ValueError("multiple config.json files in Kaggle input; set ORPHEUS_CONFIG_PATH")
+
+
 def load_config(path: str | None = None) -> Config:
     """Carica il JSON privato; non copia né emette il suo contenuto."""
-    path = path or os.environ.get(CONFIG_ENV, DEFAULT_CONFIG_PATH)
+    path = resolve_config_path(path)
     with open(path, "r", encoding="utf-8") as stream:
         obj = json.load(stream)
     if not isinstance(obj, dict):

@@ -4,21 +4,21 @@ Lo script legge **solo** gli audio supportati già presenti nella cartella Drive
 
 ## 1. Dataset Kaggle privato e configurazione
 
-Preparare **fuori dal repository** un dataset Kaggle privato con slug `orpheus-private-config`, contenente questi due file:
+Preparare **fuori dal repository** un dataset Kaggle privato con lo slug effettivo mostrato nella sua pagina, contenente questi due file:
 
 ```text
-/kaggle/input/orpheus-private-config/
+/kaggle/input/datasets/UTENTE/NOME-DATASET/
 ├── config.json
 └── credentials.json
 ```
 
-Il percorso predefinito letto dallo script è esattamente `/kaggle/input/orpheus-private-config/config.json`. Se il dataset è montato altrove, usare `ORPHEUS_CONFIG_PATH` con il percorso **assoluto** del `config.json` effettivo; adattare anche `credentials_path` nel JSON. La variabile deve essere effettivamente impostata nell'ambiente di esecuzione Kaggle: impostarla solo nel workflow GitHub **non** la trasferisce automaticamente al processo remoto. In alternativa, mantenere slug e percorso predefiniti. Verificare il percorso di mount mostrato da Kaggle per la propria esecuzione.
+Lo script usa il percorso storico `/kaggle/input/orpheus-private-config/config.json` se presente; altrimenti cerca `config.json` sotto `/kaggle/input` e procede solo se ne trova uno. Se sono montati più file con quel nome, specificare `ORPHEUS_CONFIG_PATH` nell'ambiente Kaggle con il percorso **assoluto**; adattare anche `credentials_path` nel JSON. Impostare la variabile solo nel workflow GitHub non la trasferisce al processo remoto. Verificare sempre il percorso di mount mostrato da Kaggle.
 
 Contenuto esatto di `config.json` (gli ID sono da sostituire; non contengono chiavi):
 
 ```json
 {
-  "credentials_path": "/kaggle/input/orpheus-private-config/credentials.json",
+  "credentials_path": "/kaggle/input/datasets/UTENTE/NOME-DATASET/credentials.json",
   "processing_folder_id": "INSERISCI_ID_CARTELLA_PROCESSING",
   "transcripts_folder_id": "INSERISCI_ID_CARTELLA_TRASCRIZIONI_GREZZE",
   "shared_drive_id": null,

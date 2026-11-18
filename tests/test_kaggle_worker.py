@@ -89,6 +89,27 @@ class ConfigurationTests(unittest.TestCase):
             self.assertEqual(cfg.device, 'cuda')
             self.assertIsNone(cfg.shared_drive_id)
 
+    def test_discovers_single_config_in_nested_kaggle_mount(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / 'datasets' / 'salvatorepanzariello' / 'orpheus-1'
+            root.mkdir(parents=True)
+            p = root / 'config.json'
+            p.write_text('{}')
+            with patch.dict(os.environ, {}, clear=True):
+                with patch.object(w, 'DEFAULT_CONFIG_PATH', str(Path(d) / 'not-mounted' / 'config.json')):
+                    self.assertEqual(w.resolve_config_path(input_dir=Path(d)), str(p))
+
+    def test_multiple_discovered_configs_require_explicit_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in ('one', 'two'):
+                path = Path(d) / name / 'config.json'
+                path.parent.mkdir()
+                path.write_text('{}')
+            with patch.dict(os.environ, {}, clear=True):
+                with patch.object(w, 'DEFAULT_CONFIG_PATH', str(Path(d) / 'not-mounted' / 'config.json')):
+                    with self.assertRaisesRegex(ValueError, 'multiple config.json'):
+                        w.resolve_config_path(input_dir=Path(d))
+
     def test_config_rejects_bad_and_unknown_values(self):
         valid = {'credentials_path': '/private/key.json',
                  'processing_folder_id': 'p', 'transcripts_folder_id': 't'}
